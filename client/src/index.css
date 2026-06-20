@@ -20,6 +20,7 @@
   --taksa: #d4a056;
   --lelouch: #1a1a2e;
   --cc: #4ade80;
+  --sirius: #9b59ff;
   --radius: 16px;
   --font: 'Nunito', system-ui, sans-serif;
   --font-display: 'Russo One', sans-serif;
@@ -148,6 +149,11 @@ body {
 .char-cc .character-silhouette {
   background: linear-gradient(180deg, var(--cc), #166534);
   box-shadow: 0 0 40px rgba(74, 222, 128, 0.35);
+}
+
+.char-sirius .character-silhouette {
+  background: linear-gradient(180deg, var(--sirius), #5b21b6);
+  box-shadow: 0 0 40px rgba(155, 89, 255, 0.45);
 }
 
 .bg-particles {

@@ -41,6 +41,13 @@ const CHARACTERS = [
     image: '/characters/cc.png',
     position: { bottom: '12%', left: '50%' },
   },
+  {
+    name: 'Сириус',
+    series: 'Brawl Stars',
+    className: 'char-sirius',
+    image: '/characters/sirius.png',
+    position: { top: '28%', left: '62%' },
+  },
 ];
 
 export default function BackgroundCharacters() {
@@ -71,6 +78,7 @@ export default function BackgroundCharacters() {
               {char.className === 'char-taksa' && '🐕'}
               {char.className === 'char-lelouch' && '👑'}
               {char.className === 'char-cc' && '🍕'}
+              {char.className === 'char-sirius' && '🌙'}
             </span>
           </div>
           <div className="character-label">
