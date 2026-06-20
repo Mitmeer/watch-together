@@ -20,6 +20,7 @@ RUN npm run build --prefix client
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
+ENV YT_DLP_PATH=/usr/local/bin/yt-dlp
 
 EXPOSE 3001
 

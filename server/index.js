@@ -15,7 +15,7 @@ import {
   transferHost,
   isRoomHost,
 } from './rooms.js';
-import { extractVideoInfo, refreshStreamUrl } from './videoExtractor.js';
+import { extractVideoInfo, refreshStreamUrl, getYtDlpPath } from './videoExtractor.js';
 import { cacheVideo, getCachedVideo, updateStreamUrl, toClientVideo } from './videoStore.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -38,7 +38,11 @@ app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, mode: isProd ? 'production' : 'development' });
+  res.json({
+    ok: true,
+    mode: isProd ? 'production' : 'development',
+    ytDlp: getYtDlpPath(),
+  });
 });
 
 async function prepareVideo(url) {

@@ -11,6 +11,7 @@ if not exist "client\dist\index.html" (
 set NODE_ENV=production
 set PORT=3001
 set HOST=0.0.0.0
+set YT_DLP_PATH=%~dp0.venv\Scripts\yt-dlp.exe
 
 echo.
 echo  Запуск Watch Together...
