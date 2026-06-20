@@ -17,7 +17,7 @@ import {
   isRoomHost,
   getPlaybackSnapshot,
 } from './rooms.js';
-import { extractVideoInfo, refreshStreamUrl, getYtDlpPath } from './videoExtractor.js';
+import { extractVideoInfo, getYtDlpPath, getStreamFetchOptions } from './videoExtractor.js';
 import { cacheVideo, getCachedVideo, updateStreamUrl, toClientVideo } from './videoStore.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -90,23 +90,15 @@ app.get('/api/video/stream/:id', async (req, res) => {
   }
 
   const fetchStream = async (streamUrl) =>
-    fetch(streamUrl, {
-      headers: {
-        Range: req.headers.range || '',
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Referer: entry.webpageUrl || '',
-        Origin: new URL(entry.webpageUrl || 'https://www.youtube.com').origin,
-      },
-    });
+    fetch(streamUrl, getStreamFetchOptions(entry, { Range: req.headers.range || '' }));
 
   try {
     let response = await fetchStream(entry.streamUrl);
 
     if ((!response.ok && response.status !== 206) || response.status === 403) {
       if (entry.webpageUrl && entry.extractor !== 'direct') {
-        const freshUrl = await refreshStreamUrl(entry.webpageUrl);
-        entry = updateStreamUrl(entry.id, freshUrl);
+        const fresh = await extractVideoInfo(entry.webpageUrl);
+        entry = updateStreamUrl(entry.id, fresh.streamUrl, fresh.streamType);
         response = await fetchStream(entry.streamUrl);
       }
     }
@@ -135,6 +127,102 @@ app.get('/api/video/stream/:id', async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ error: err.message || 'Ошибка воспроизведения' });
+  }
+});
+
+function absolutizeMediaUrl(line, baseUrl) {
+  try {
+    return new URL(line.trim(), baseUrl).href;
+  } catch {
+    return null;
+  }
+}
+
+app.get('/api/video/hls/:id', async (req, res) => {
+  const entry = getCachedVideo(req.params.id);
+  if (!entry || entry.streamType !== 'hls') {
+    return res.status(404).send('Playlist not found');
+  }
+
+  try {
+    const manifestRes = await fetch(entry.streamUrl, getStreamFetchOptions(entry));
+    if (!manifestRes.ok) {
+      return res.status(502).send('Failed to load playlist');
+    }
+
+    const text = await manifestRes.text();
+    const baseUrl = entry.streamUrl.includes('/')
+      ? entry.streamUrl.slice(0, entry.streamUrl.lastIndexOf('/') + 1)
+      : entry.streamUrl;
+
+    const rewritten = text
+      .split('\n')
+      .map((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return line;
+        const abs = absolutizeMediaUrl(trimmed, baseUrl);
+        if (!abs) return line;
+        return `/api/video/relay/${entry.id}?u=${encodeURIComponent(abs)}`;
+      })
+      .join('\n');
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(rewritten);
+  } catch (err) {
+    res.status(500).send(err.message || 'HLS error');
+  }
+});
+
+app.get('/api/video/relay/:id', async (req, res) => {
+  const entry = getCachedVideo(req.params.id);
+  const target = req.query.u;
+  if (!entry || !target || typeof target !== 'string') {
+    return res.status(400).send('Bad request');
+  }
+
+  try {
+    const targetUrl = decodeURIComponent(target);
+    const response = await fetch(targetUrl, getStreamFetchOptions(entry, { Range: req.headers.range || '' }));
+
+    if (!response.ok && response.status !== 206) {
+      return res.status(502).send('Relay failed');
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('mpegurl') || targetUrl.includes('.m3u8')) {
+      const text = await response.text();
+      const baseUrl = targetUrl.includes('/')
+        ? targetUrl.slice(0, targetUrl.lastIndexOf('/') + 1)
+        : targetUrl;
+      const rewritten = text
+        .split('\n')
+        .map((line) => {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) return line;
+          const abs = absolutizeMediaUrl(trimmed, baseUrl);
+          if (!abs) return line;
+          return `/api/video/relay/${entry.id}?u=${encodeURIComponent(abs)}`;
+        })
+        .join('\n');
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.send(rewritten);
+      return;
+    }
+
+    if (contentType) res.setHeader('Content-Type', contentType);
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+    res.status(response.status);
+
+    if (response.body) {
+      const { Readable } = await import('stream');
+      Readable.fromWeb(response.body).pipe(res);
+    } else {
+      res.send(Buffer.from(await response.arrayBuffer()));
+    }
+  } catch (err) {
+    res.status(500).send(err.message || 'Relay error');
   }
 });
 

@@ -240,7 +240,7 @@ export default function Room() {
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSetVideo()}
-              placeholder="Вставьте ссылку: YouTube, VK, Rutube..."
+              placeholder="Ссылка: YouTube, VK, Rutube, .mp4, .m3u8 или любой сайт..."
               disabled={loadingVideo}
             />
             <button

@@ -14,6 +14,7 @@ export function cacheVideo(info) {
     thumbnail: info.thumbnail,
     duration: info.duration,
     streamUrl: info.streamUrl,
+    streamType: info.streamType || 'mp4',
     webpageUrl: info.webpageUrl,
     extractor: info.extractor,
     cachedAt: Date.now(),
@@ -31,10 +32,11 @@ export function getCachedVideo(id) {
   return entry;
 }
 
-export function updateStreamUrl(id, streamUrl) {
+export function updateStreamUrl(id, streamUrl, streamType) {
   const entry = store.get(id);
   if (!entry) return null;
   entry.streamUrl = streamUrl;
+  if (streamType) entry.streamType = streamType;
   entry.cachedAt = Date.now();
   return entry;
 }
@@ -48,12 +50,14 @@ function cleanup() {
 }
 
 export function toClientVideo(entry) {
+  const isHls = entry.streamType === 'hls';
   return {
     id: entry.id,
     title: entry.title,
     thumbnail: entry.thumbnail,
     duration: entry.duration,
-    streamUrl: `/api/video/stream/${entry.id}`,
+    streamUrl: isHls ? `/api/video/hls/${entry.id}` : `/api/video/stream/${entry.id}`,
+    isHls,
     webpageUrl: entry.webpageUrl,
     extractor: entry.extractor,
   };

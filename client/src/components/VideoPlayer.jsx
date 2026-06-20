@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Hls from 'hls.js';
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -124,15 +125,50 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
   );
 
   useEffect(() => {
-    if (!videoRef.current || !video) return;
+    const el = videoRef.current;
+    if (!el || !video) return;
+
     setPlayError('');
     setLoading(true);
     setNeedsTap(false);
     refs.unlocked.current = false;
     refs.lastRemote.current = null;
-    videoRef.current.playbackRate = 1;
-    videoRef.current.load();
-  }, [video?.streamUrl, refs]);
+    el.playbackRate = 1;
+    el.removeAttribute('src');
+    el.load();
+
+    if (video.isHls) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+        hls.loadSource(video.streamUrl);
+        hls.attachMedia(el);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => setLoading(false));
+        hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+          if (data.details?.totalduration) {
+            setDuration(data.details.totalduration);
+          }
+        });
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            setLoading(false);
+            setPlayError('Ошибка HLS-потока. Попробуйте другую ссылку.');
+          }
+        });
+        return () => hls.destroy();
+      }
+
+      if (el.canPlayType('application/vnd.apple.mpegurl')) {
+        el.src = video.streamUrl;
+        return;
+      }
+
+      setLoading(false);
+      setPlayError('HLS не поддерживается в этом браузере');
+      return;
+    }
+
+    el.src = video.streamUrl;
+  }, [video?.streamUrl, video?.isHls, refs]);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -295,7 +331,7 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
       <div className="video-placeholder">
         <div className="video-placeholder-icon">▶</div>
         <p>{hasVideo ? 'Загрузка...' : 'Вставьте ссылку на видео выше'}</p>
-        <span>YouTube, VK Video, Rutube и другие</span>
+        <span>YouTube, VK, Rutube, прямые .mp4/.m3u8 и другие сайты</span>
       </div>
     );
   }
@@ -314,7 +350,6 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
       <video
         ref={videoRef}
         className="video-player"
-        src={video.streamUrl}
         playsInline
         preload="auto"
         onLoadedMetadata={handleLoadedMetadata}
