@@ -1,5 +1,10 @@
+const CHARACTERS_VERSION = '2';
+
+function characterSrc(path) {
+  return `${path}?v=${CHARACTERS_VERSION}`;
+}
+
 const CHARACTERS = [
-  {
     name: 'Mortis',
     series: 'Brawl Stars',
     className: 'char-mortis',
@@ -55,7 +60,7 @@ function CharacterCard({ char }) {
   return (
     <div className={`character-card ${char.className}`} style={char.position}>
       <img
-        src={char.image}
+        src={characterSrc(char.image)}
         alt=""
         className="character-image"
         loading="lazy"
