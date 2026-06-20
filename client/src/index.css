@@ -15,7 +15,7 @@
   --accent: #7c5cff;
   --accent-glow: rgba(124, 92, 255, 0.4);
   --mortis: #6b3fa0;
-  --angela: #ff6eb4;
+  --angelo: #ff6eb4;
   --mellstroy: #ff3d3d;
   --taksa: #d4a056;
   --lelouch: #1a1a2e;
@@ -122,8 +122,8 @@ body {
   box-shadow: 0 0 40px rgba(107, 63, 160, 0.5);
 }
 
-.char-angela .character-silhouette {
-  background: linear-gradient(180deg, var(--angela), #c44d8a);
+.char-angelo .character-silhouette {
+  background: linear-gradient(180deg, var(--angelo), #c44d8a);
   box-shadow: 0 0 40px rgba(255, 110, 180, 0.4);
 }
 

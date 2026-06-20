@@ -7,10 +7,10 @@ const CHARACTERS = [
     position: { top: '5%', left: '2%' },
   },
   {
-    name: 'Angela',
+    name: 'Angelo',
     series: 'Brawl Stars',
-    className: 'char-angela',
-    image: '/characters/angela.png',
+    className: 'char-angelo',
+    image: '/characters/angelo.png',
     position: { top: '12%', right: '2%' },
   },
   {
@@ -66,7 +66,7 @@ export default function BackgroundCharacters() {
           <div className="character-fallback">
             <span className="character-emoji">
               {char.className === 'char-mortis' && '🦇'}
-              {char.className === 'char-angela' && '💗'}
+              {char.className === 'char-angelo' && '💗'}
               {char.className === 'char-mellstroy' && '🔥'}
               {char.className === 'char-taksa' && '🐕'}
               {char.className === 'char-lelouch' && '👑'}
