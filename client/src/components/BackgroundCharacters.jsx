@@ -32,14 +32,14 @@ const CHARACTERS = [
     series: 'Code Geass',
     className: 'char-lelouch',
     image: '/characters/lelouch.png',
-    position: { top: '42%', left: '1%' },
+    position: { bottom: '12%', left: '36%' },
   },
   {
     name: 'C.C.',
     series: 'Code Geass',
     className: 'char-cc',
     image: '/characters/cc.png',
-    position: { top: '48%', right: '1%' },
+    position: { bottom: '12%', left: '50%' },
   },
 ];
 
