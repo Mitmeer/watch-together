@@ -5,6 +5,7 @@ function characterSrc(path) {
 }
 
 const CHARACTERS = [
+  {
     name: 'Mortis',
     series: 'Brawl Stars',
     className: 'char-mortis',
