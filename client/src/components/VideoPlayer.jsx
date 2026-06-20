@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import YouTubeVideoPlayer from './YouTubeVideoPlayer';
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -325,6 +326,10 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
     setLoading(false);
     setPlayError('Ошибка загрузки видео. Загрузите ссылку снова.');
   };
+
+  if (video?.sourceType === 'youtube') {
+    return <YouTubeVideoPlayer video={video} syncTick={syncTick} onUserAction={onUserAction} />;
+  }
 
   if (!video) {
     return (

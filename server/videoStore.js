@@ -13,8 +13,11 @@ export function cacheVideo(info) {
     title: info.title,
     thumbnail: info.thumbnail,
     duration: info.duration,
-    streamUrl: info.streamUrl,
+    streamUrl: info.streamUrl || null,
     streamType: info.streamType || 'mp4',
+    sourceType: info.sourceType || 'file',
+    youtubeId: info.youtubeId || null,
+    startTime: info.startTime || 0,
     webpageUrl: info.webpageUrl,
     extractor: info.extractor,
     cachedAt: Date.now(),
@@ -50,14 +53,36 @@ function cleanup() {
 }
 
 export function toClientVideo(entry) {
+  if (entry.sourceType === 'youtube') {
+    return {
+      id: entry.id,
+      title: entry.title,
+      thumbnail: entry.thumbnail,
+      duration: entry.duration,
+      sourceType: 'youtube',
+      youtubeId: entry.youtubeId,
+      startTime: entry.startTime || 0,
+      webpageUrl: entry.webpageUrl,
+      extractor: entry.extractor,
+    };
+  }
+
   const isHls = entry.streamType === 'hls';
+  const isDirect = entry.extractor === 'direct' && !isHls;
+
   return {
     id: entry.id,
     title: entry.title,
     thumbnail: entry.thumbnail,
     duration: entry.duration,
-    streamUrl: isHls ? `/api/video/hls/${entry.id}` : `/api/video/stream/${entry.id}`,
+    sourceType: isHls ? 'hls' : 'file',
+    streamUrl: isDirect
+      ? entry.streamUrl
+      : isHls
+        ? `/api/video/hls/${entry.id}`
+        : `/api/video/stream/${entry.id}`,
     isHls,
+    isDirect,
     webpageUrl: entry.webpageUrl,
     extractor: entry.extractor,
   };

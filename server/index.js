@@ -104,11 +104,17 @@ app.get('/api/video/stream/:id', async (req, res) => {
     }
 
     if (!response.ok && response.status !== 206) {
-      return res.status(502).json({ error: 'Не удалось загрузить видео. Попробуйте другую ссылку.' });
+      return res.status(502).json({
+        error: 'Не удалось загрузить видео с удалённого сервера. Вставьте прямую ссылку на .mp4',
+      });
     }
 
     const contentType = response.headers.get('content-type');
-    if (contentType) res.setHeader('Content-Type', contentType);
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
+    } else if (entry.streamUrl?.includes('.mp4')) {
+      res.setHeader('Content-Type', 'video/mp4');
+    }
 
     const contentLength = response.headers.get('content-length');
     if (contentLength) res.setHeader('Content-Length', contentLength);

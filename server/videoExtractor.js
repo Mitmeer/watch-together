@@ -70,7 +70,95 @@ function normalizeUrl(url) {
   return url
     .trim()
     .replace(/^https?:\/\/vkvideo\.ru/i, 'https://vk.com')
-    .replace(/^https?:\/\/m\.vk\.com/i, 'https://vk.com');
+    .replace(/^https?:\/\/m\.vk\.com/i, 'https://vk.com')
+    .replace(/^https?:\/\/youtu\.be/i, 'https://www.youtube.com')
+    .replace(/^https?:\/\/m\.youtube\.com/i, 'https://www.youtube.com');
+}
+
+function isYouTubeUrl(url) {
+  return /(?:youtube\.com\/(?:watch|embed|shorts|live)|youtu\.be\/)/i.test(url);
+}
+
+function getYouTubeVideoId(url) {
+  const patterns = [
+    /[?&]v=([a-zA-Z0-9_-]{11})/,
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  return null;
+}
+
+function getYouTubeStartTime(url) {
+  const timeMatch = url.match(/[?&]t=(\d+)/);
+  if (timeMatch) return Number(timeMatch[1]);
+
+  const startMatch = url.match(/[?&]start=(\d+)/);
+  if (startMatch) return Number(startMatch[1]);
+
+  const hmsMatch = url.match(/[?&]t=(\d+h\d+m\d+s|\d+m\d+s|\d+s)/i);
+  if (!hmsMatch) return 0;
+
+  const raw = hmsMatch[1].toLowerCase();
+  let seconds = 0;
+  const hours = raw.match(/(\d+)h/);
+  const mins = raw.match(/(\d+)m/);
+  const secs = raw.match(/(\d+)s/);
+  if (hours) seconds += Number(hours[1]) * 3600;
+  if (mins) seconds += Number(mins[1]) * 60;
+  if (secs) seconds += Number(secs[1]);
+  return seconds;
+}
+
+async function fetchYouTubeMeta(videoId, webpageUrl) {
+  try {
+    const response = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`
+    );
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        title: data.title || 'YouTube видео',
+        thumbnail: data.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      };
+    }
+  } catch {
+    /* fallback below */
+  }
+
+  return {
+    title: 'YouTube видео',
+    thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+  };
+}
+
+async function extractYouTubeInfo(url) {
+  const videoId = getYouTubeVideoId(url);
+  if (!videoId) {
+    throw new Error('Некорректная ссылка YouTube');
+  }
+
+  const meta = await fetchYouTubeMeta(videoId, url);
+
+  return {
+    sourceType: 'youtube',
+    youtubeId: videoId,
+    startTime: getYouTubeStartTime(url),
+    title: meta.title,
+    thumbnail: meta.thumbnail,
+    duration: 0,
+    streamUrl: null,
+    streamType: 'mp4',
+    webpageUrl: `https://www.youtube.com/watch?v=${videoId}`,
+    extractor: 'youtube',
+  };
 }
 
 function absolutize(href, base) {
@@ -257,11 +345,19 @@ function extractIframeUrls(html, baseUrl) {
 }
 
 function sanitizeErrorMessage(message) {
-  return (message || '')
+  const cleaned = (message || '')
     .replace(/^ERROR:\s*/i, '')
+    .replace(/\[youtube\][^\n.]*/gi, '')
+    .replace(/Sign in to confirm you're not a bot[^\n.]*/gi, 'YouTube временно недоступен с сервера')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 280);
+    .slice(0, 220);
+
+  if (!cleaned || cleaned === "YouTube временно недоступен с сервера") {
+    return 'Не удалось получить видео с этого сайта';
+  }
+
+  return cleaned;
 }
 
 async function scrapePageForVideo(pageUrl, depth = 0) {
@@ -281,6 +377,7 @@ async function scrapePageForVideo(pageUrl, depth = 0) {
       duration: 0,
       streamUrl: picked.streamUrl,
       streamType: picked.streamType,
+      sourceType: picked.streamType === 'hls' ? 'hls' : 'file',
       webpageUrl: pageUrl,
       extractor: 'webpage',
     };
@@ -305,13 +402,36 @@ async function scrapePageForVideo(pageUrl, depth = 0) {
 }
 
 async function extractWithYtDlp(url) {
+  const clientStrategies = [
+    'youtube:player_client=tv,web_embedded;player_skip=webpage',
+    'youtube:player_client=android_vr,web',
+    'youtube:player_client=web_safari',
+  ];
+
+  let lastError = null;
+
+  for (const extractorArgs of clientStrategies) {
+    try {
+      return await extractWithYtDlpOnce(url, extractorArgs);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Не удалось извлечь видео');
+}
+
+async function extractWithYtDlpOnce(url, extractorArgs) {
   const output = await runYtDlp([
     '--dump-json',
     '--no-playlist',
     '--no-check-certificates',
     '--no-warnings',
+    '--force-ipv4',
     '--referer',
     url,
+    '--extractor-args',
+    extractorArgs,
     '--format',
     'best[ext=mp4][height<=720]/best[height<=720]/best[ext=mp4]/best/bestvideo+bestaudio/best',
     '--user-agent',
@@ -335,6 +455,7 @@ async function extractWithYtDlp(url) {
     duration: data.duration || 0,
     streamUrl,
     streamType,
+    sourceType: streamType === 'hls' ? 'hls' : 'file',
     webpageUrl: data.webpage_url || url,
     extractor: data.extractor_key || 'ytdlp',
   };
@@ -351,6 +472,7 @@ function directMediaInfo(url) {
     duration: 0,
     streamUrl: url,
     streamType,
+    sourceType: streamType === 'hls' ? 'hls' : 'file',
     webpageUrl: url,
     extractor: 'direct',
   };
@@ -366,6 +488,10 @@ export async function extractVideoInfo(url) {
     throw new Error('Введите корректную ссылку (http/https)');
   }
 
+  if (isYouTubeUrl(trimmed)) {
+    return extractYouTubeInfo(trimmed);
+  }
+
   if (isMediaUrl(trimmed)) {
     return directMediaInfo(trimmed);
   }
@@ -376,13 +502,12 @@ export async function extractVideoInfo(url) {
     try {
       return await scrapePageForVideo(trimmed);
     } catch (scrapeError) {
-      const ytdlpHint = sanitizeErrorMessage(ytdlpError.message);
       const scrapeHint = sanitizeErrorMessage(scrapeError.message);
-      const parts = [scrapeHint];
-      if (ytdlpHint && !scrapeHint.includes(ytdlpHint)) {
-        parts.push(ytdlpHint);
+      const ytdlpHint = sanitizeErrorMessage(ytdlpError.message);
+      if (scrapeHint === ytdlpHint) {
+        throw new Error(`${scrapeHint}. Попробуйте прямую ссылку на .mp4 или .m3u8`);
       }
-      throw new Error(`${parts.join('. ')}. Попробуйте прямую ссылку на .mp4 или .m3u8`);
+      throw new Error(`${scrapeHint}. ${ytdlpHint}`);
     }
   }
 }
@@ -414,6 +539,7 @@ export function getStreamHeaders(entry) {
 export function getStreamFetchOptions(entry, extraHeaders = {}) {
   const options = {
     headers: { ...getStreamHeaders(entry), ...extraHeaders },
+    redirect: 'follow',
   };
 
   const target = entry.streamUrl || entry.webpageUrl || '';
