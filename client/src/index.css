@@ -542,11 +542,75 @@ input:focus {
   background: #000;
 }
 
+.video-wrapper:fullscreen,
+.video-wrapper:-webkit-full-screen {
+  border-radius: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+.video-wrapper:fullscreen .video-player,
+.video-wrapper:-webkit-full-screen .video-player {
+  max-height: none;
+  height: calc(100% - 52px);
+}
+
 .video-player {
   width: 100%;
   max-height: 70vh;
   display: block;
   background: #000;
+  vertical-align: top;
+}
+
+.video-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.video-ctrl-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(124, 92, 255, 0.25);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.video-ctrl-btn:active {
+  transform: scale(0.96);
+}
+
+.video-time {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  min-width: 36px;
+}
+
+.video-seek {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.video-tap-sync {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border: none;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .video-error {
@@ -600,28 +664,6 @@ input:focus {
   justify-content: center;
   background: rgba(0, 0, 0, 0.6);
   z-index: 2;
-}
-
-.video-info {
-  padding: 12px 4px 0;
-}
-
-.video-info h3 {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.video-source {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.host-hint {
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-top: 12px;
 }
 
 /* ===== Chat ===== */

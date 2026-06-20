@@ -1,11 +1,6 @@
-Публичная ссылка (локальный туннель, пока включён ПК):
-https://nasty-banks-cough.loca.lt
-(при первом заходе введите IP: 5.18.190.125)
+Постоянный сайт (Render):
+https://watch-together-wtw8.onrender.com
 
-GitHub репозиторий:
-https://github.com/Mitmeer/watch-together
-
-Постоянный облачный деплой (Render.com):
-https://dashboard.render.com/blueprint/new?repo=https://github.com/Mitmeer/watch-together
+После обновления на телефоне: Ctrl+Shift+R или очистить кэш Safari/Chrome.
 
 Локально: http://localhost:3001
