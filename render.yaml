@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: watch-together
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0

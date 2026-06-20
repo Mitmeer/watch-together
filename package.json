@@ -1,0 +1,19 @@
+{
+  "name": "watch-together",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
+    "setup:python": "uv venv && uv pip install yt-dlp",
+    "build": "npm run build --prefix client",
+    "start": "npm run start --prefix server",
+    "start:prod": "npm run build && cross-env NODE_ENV=production npm run start --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3"
+  }
+}

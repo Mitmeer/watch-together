@@ -1,0 +1,8 @@
+node_modules
+.venv
+bin
+.git
+*.log
+tunnel-log.txt
+SITE_URL.txt
+client/dist

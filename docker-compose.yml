@@ -1,0 +1,10 @@
+services:
+  watch-together:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+    restart: unless-stopped
