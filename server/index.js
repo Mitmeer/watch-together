@@ -203,10 +203,6 @@ io.on('connection', (socket) => {
       callback?.({ success: false, error: 'Сначала войдите в комнату' });
       return;
     }
-    if (room.hostSocketId !== socket.id) {
-      callback?.({ success: false, error: 'Только хост может менять видео' });
-      return;
-    }
     if (!url?.trim()) {
       callback?.({ success: false, error: 'Вставьте ссылку на видео' });
       return;
@@ -216,7 +212,12 @@ io.on('connection', (socket) => {
       const video = await prepareVideo(url.trim());
       updatePlayback(room, { video, currentTime: 0, isPlaying: false });
 
-      io.to(room.code).emit('video-changed', { video, currentTime: 0, isPlaying: false });
+      io.to(room.code).emit('video-changed', {
+        video,
+        currentTime: 0,
+        isPlaying: false,
+        sentAt: Date.now(),
+      });
       io.to(room.code).emit('room-updated', getRoomState(room));
       callback?.({ success: true, video });
     } catch (err) {
@@ -226,17 +227,18 @@ io.on('connection', (socket) => {
 
   socket.on('playback-sync', (data) => {
     const room = getSocketRoom();
-    if (!room || room.hostSocketId !== socket.id) return;
+    if (!room) return;
 
-    updatePlayback(room, {
-      currentTime: data.currentTime,
-      isPlaying: data.isPlaying,
-    });
+    const currentTime = Number(data.currentTime) || 0;
+    const isPlaying = Boolean(data.isPlaying);
+    const sentAt = Date.now();
+
+    updatePlayback(room, { currentTime, isPlaying });
 
     socket.to(room.code).emit('playback-sync', {
-      currentTime: data.currentTime,
-      isPlaying: data.isPlaying,
-      sentAt: Date.now(),
+      currentTime,
+      isPlaying,
+      sentAt,
     });
   });
 

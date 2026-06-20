@@ -4,25 +4,30 @@ import { useSocket, emitWithCallback } from '../hooks/useSocket.jsx';
 import VideoPlayer from '../components/VideoPlayer.jsx';
 import Chat from '../components/Chat.jsx';
 
+function nextSyncTick(data) {
+  return {
+    currentTime: data.currentTime ?? 0,
+    isPlaying: Boolean(data.isPlaying),
+    sentAt: data.sentAt || Date.now(),
+    id: `${Date.now()}-${Math.random()}`,
+  };
+}
+
 export default function Room() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const { socket, connected, clientUserId } = useSocket();
+  const { socket, connected } = useSocket();
 
   const [room, setRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [videoUrl, setVideoUrl] = useState('');
   const [loadingVideo, setLoadingVideo] = useState(false);
   const [error, setError] = useState('');
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [syncTick, setSyncTick] = useState(null);
   const [copied, setCopied] = useState('');
 
   const roomCodeRef = useRef(null);
   const joiningRef = useRef(false);
-
-  const isHost =
-    room?.hostClientId === clientUserId || room?.hostId === socket?.id;
 
   const joinRoom = useCallback(async () => {
     if (!socket || !connected || joiningRef.current) return;
@@ -64,8 +69,13 @@ export default function Room() {
     roomCodeRef.current = result.room.code;
     setRoom(result.room);
     setMessages(result.room.chat || []);
-    setIsPlaying(result.room.isPlaying);
-    setCurrentTime(result.room.currentTime);
+    setSyncTick(
+      nextSyncTick({
+        currentTime: result.room.currentTime,
+        isPlaying: result.room.isPlaying,
+        sentAt: Date.now(),
+      })
+    );
   }, [socket, connected, code, navigate]);
 
   useEffect(() => {
@@ -95,16 +105,14 @@ export default function Room() {
 
     const onRoomUpdated = (updated) => setRoom(updated);
 
-    const onVideoChanged = ({ video, currentTime: time, isPlaying: playing }) => {
+    const onVideoChanged = ({ video, currentTime, isPlaying, sentAt }) => {
       setRoom((prev) => (prev ? { ...prev, video } : prev));
-      setCurrentTime(time);
-      setIsPlaying(playing);
+      setSyncTick(nextSyncTick({ currentTime, isPlaying, sentAt }));
       setError('');
     };
 
-    const onPlaybackSync = ({ currentTime: time, isPlaying: playing }) => {
-      setCurrentTime(time);
-      setIsPlaying(playing);
+    const onPlaybackSync = ({ currentTime, isPlaying, sentAt }) => {
+      setSyncTick(nextSyncTick({ currentTime, isPlaying, sentAt }));
     };
 
     const onChatMessage = (message) => {
@@ -143,24 +151,9 @@ export default function Room() {
     }
   };
 
-  const syncThrottleRef = useRef(null);
-
-  const handleSync = useCallback(
-    ({ currentTime: time, isPlaying: playing }) => {
-      setCurrentTime(time);
-      setIsPlaying(playing);
-      socket?.emit('playback-sync', { currentTime: time, isPlaying: playing });
-    },
-    [socket]
-  );
-
-  const handleTimeUpdate = useCallback(
-    (time) => {
-      if (syncThrottleRef.current) return;
-      syncThrottleRef.current = setTimeout(() => {
-        syncThrottleRef.current = null;
-      }, 2500);
-      socket?.emit('playback-sync', { currentTime: time, isPlaying: true });
+  const handleUserAction = useCallback(
+    ({ currentTime, isPlaying }) => {
+      socket?.emit('playback-sync', { currentTime, isPlaying });
     },
     [socket]
   );
@@ -241,40 +234,32 @@ export default function Room() {
 
       <div className="room-layout">
         <section className="player-section glass-card">
-          {isHost && (
-            <div className="url-bar">
-              <input
-                type="url"
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSetVideo()}
-                placeholder="Вставьте ссылку: YouTube, VK, Rutube..."
-                disabled={loadingVideo}
-              />
-              <button
-                className="btn btn-primary"
-                onClick={handleSetVideo}
-                disabled={loadingVideo || !videoUrl.trim()}
-              >
-                {loadingVideo ? 'Загрузка...' : 'Загрузить'}
-              </button>
-            </div>
-          )}
+          <div className="url-bar">
+            <input
+              type="url"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSetVideo()}
+              placeholder="Вставьте ссылку: YouTube, VK, Rutube..."
+              disabled={loadingVideo}
+            />
+            <button
+              className="btn btn-primary"
+              onClick={handleSetVideo}
+              disabled={loadingVideo || !videoUrl.trim()}
+            >
+              {loadingVideo ? 'Загрузка...' : 'Загрузить'}
+            </button>
+          </div>
 
           {error && <p className="error-msg">{error}</p>}
 
           <VideoPlayer
             video={room.video}
-            isHost={isHost}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            onSync={handleSync}
-            onTimeUpdate={handleTimeUpdate}
+            syncTick={syncTick}
+            onUserAction={handleUserAction}
+            hasVideo={Boolean(room.video)}
           />
-
-          {!isHost && (
-            <p className="host-hint">⏯ Управление воспроизведением — у хоста комнаты</p>
-          )}
         </section>
 
         <aside className="sidebar">
