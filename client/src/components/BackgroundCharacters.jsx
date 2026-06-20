@@ -14,10 +14,10 @@ const CHARACTERS = [
     position: { top: '12%', right: '2%' },
   },
   {
-    name: 'Maelstroy',
+    name: 'Mellstroy',
     series: '',
-    className: 'char-maelstroy',
-    image: '/characters/maelstroy.png',
+    className: 'char-mellstroy',
+    image: '/characters/mellstroy.png',
     position: { bottom: '8%', left: '3%' },
   },
   {
@@ -67,7 +67,7 @@ export default function BackgroundCharacters() {
             <span className="character-emoji">
               {char.className === 'char-mortis' && '🦇'}
               {char.className === 'char-angela' && '💗'}
-              {char.className === 'char-maelstroy' && '🔥'}
+              {char.className === 'char-mellstroy' && '🔥'}
               {char.className === 'char-taksa' && '🐕'}
               {char.className === 'char-lelouch' && '👑'}
               {char.className === 'char-cc' && '🍕'}
