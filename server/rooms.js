@@ -39,7 +39,9 @@ export function deleteRoomIfEmpty(code) {
   const room = rooms.get(code);
   if (room && room.users.size === 0) {
     rooms.delete(code);
+    return true;
   }
+  return false;
 }
 
 export function getRoomState(room) {
@@ -86,6 +88,18 @@ export function updatePlayback(room, { currentTime, isPlaying, video }) {
   if (currentTime !== undefined) room.currentTime = currentTime;
   if (isPlaying !== undefined) room.isPlaying = isPlaying;
   room.lastSyncAt = Date.now();
+}
+
+export function getPlaybackSnapshot(room) {
+  let currentTime = room.currentTime;
+  if (room.isPlaying) {
+    currentTime += (Date.now() - room.lastSyncAt) / 1000;
+  }
+  return {
+    currentTime,
+    isPlaying: room.isPlaying,
+    sentAt: Date.now(),
+  };
 }
 
 export function isRoomHost(room, socketId, clientUserId) {

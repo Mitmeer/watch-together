@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -7,33 +7,42 @@ function formatTime(seconds) {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-function applyRemoteState(el, payload, syncingRef, lastRemoteRef, unlockedRef, setNeedsTap) {
+function isMobileDevice() {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+function getExpectedTime({ currentTime, isPlaying, receivedAt }) {
+  if (!isPlaying) return currentTime;
+  return currentTime + (Date.now() - receivedAt) / 1000;
+}
+
+function applyRemoteState(el, payload, refs, setNeedsTap, config) {
   const { currentTime, isPlaying, sentAt } = payload;
   const receivedAt = sentAt || Date.now();
+  const targetTime = getExpectedTime({ currentTime, isPlaying, receivedAt });
 
-  let targetTime = currentTime;
-  if (isPlaying) {
-    targetTime += (Date.now() - receivedAt) / 1000;
-  }
+  refs.lastRemote.current = { currentTime, isPlaying, receivedAt };
 
-  const needSeek = Math.abs(el.currentTime - targetTime) > 0.35;
-  const needPlay = isPlaying && el.paused;
   const needPause = !isPlaying && !el.paused;
-
-  lastRemoteRef.current = { currentTime, isPlaying, receivedAt };
+  const needPlay = isPlaying && el.paused;
+  const diff = Math.abs(el.currentTime - targetTime);
+  const needSeek = diff > config.hardSeek;
 
   if (!needSeek && !needPlay && !needPause) return;
 
-  syncingRef.current = true;
+  refs.syncing.current = true;
 
   if (needSeek) {
     el.currentTime = Math.max(0, targetTime);
   }
 
+  el.playbackRate = 1;
+
   const finish = () => {
     window.setTimeout(() => {
-      syncingRef.current = false;
-    }, 100);
+      refs.syncing.current = false;
+    }, 120);
   };
 
   if (needPause) {
@@ -44,23 +53,46 @@ function applyRemoteState(el, payload, syncingRef, lastRemoteRef, unlockedRef, s
   }
 
   if (needPlay) {
-    if (!unlockedRef.current) {
+    if (!refs.unlocked.current) {
       setNeedsTap(true);
       finish();
       return;
     }
     el.play()
-      .then(() => {
-        setNeedsTap(false);
-      })
-      .catch(() => {
-        setNeedsTap(true);
-      })
+      .then(() => setNeedsTap(false))
+      .catch(() => setNeedsTap(true))
       .finally(finish);
     return;
   }
 
   finish();
+}
+
+function correctDrift(el, refs, config) {
+  const remote = refs.lastRemote.current;
+  if (!remote?.isPlaying || el.paused || refs.syncing.current || refs.seeking.current) {
+    if (el.playbackRate !== 1) el.playbackRate = 1;
+    return;
+  }
+
+  const expected = getExpectedTime(remote);
+  const diff = expected - el.currentTime;
+
+  if (Math.abs(diff) > config.hardSeek) {
+    refs.syncing.current = true;
+    el.currentTime = expected;
+    el.playbackRate = 1;
+    window.setTimeout(() => {
+      refs.syncing.current = false;
+    }, 120);
+    return;
+  }
+
+  if (Math.abs(diff) > config.softZone) {
+    el.playbackRate = diff > 0 ? config.catchUpRate : config.slowRate;
+  } else if (el.playbackRate !== 1) {
+    el.playbackRate = 1;
+  }
 }
 
 export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo }) {
@@ -74,47 +106,49 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
   const [duration, setDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const syncingRef = useRef(false);
-  const lastRemoteRef = useRef(null);
-  const lastEmitRef = useRef(0);
-  const unlockedRef = useRef(false);
-  const seekingRef = useRef(false);
+  const refs = useRef({
+    syncing: { current: false },
+    lastRemote: { current: null },
+    lastEmit: { current: 0 },
+    unlocked: { current: false },
+    seeking: { current: false },
+    lastUi: { current: 0 },
+  }).current;
+
+  const syncConfig = useMemo(
+    () =>
+      isMobileDevice()
+        ? { hardSeek: 2.2, softZone: 0.35, catchUpRate: 1.015, slowRate: 0.985, driftMs: 900 }
+        : { hardSeek: 1.4, softZone: 0.2, catchUpRate: 1.03, slowRate: 0.97, driftMs: 500 },
+    []
+  );
 
   useEffect(() => {
     if (!videoRef.current || !video) return;
     setPlayError('');
     setLoading(true);
     setNeedsTap(false);
-    unlockedRef.current = false;
-    lastRemoteRef.current = null;
+    refs.unlocked.current = false;
+    refs.lastRemote.current = null;
+    videoRef.current.playbackRate = 1;
     videoRef.current.load();
-  }, [video?.streamUrl]);
+  }, [video?.streamUrl, refs]);
 
   useEffect(() => {
     const el = videoRef.current;
     if (!el || !syncTick) return;
-    applyRemoteState(el, syncTick, syncingRef, lastRemoteRef, unlockedRef, setNeedsTap);
-  }, [syncTick?.id]);
+    applyRemoteState(el, syncTick, refs, setNeedsTap, syncConfig);
+  }, [syncTick?.id, syncConfig, refs]);
 
   useEffect(() => {
     const tick = window.setInterval(() => {
       const el = videoRef.current;
-      const remote = lastRemoteRef.current;
-      if (!el || syncingRef.current || seekingRef.current || !remote?.isPlaying || el.paused) return;
-
-      const expected = remote.currentTime + (Date.now() - remote.receivedAt) / 1000;
-      const diff = Math.abs(el.currentTime - expected);
-      if (diff > 0.8 && diff < 20) {
-        syncingRef.current = true;
-        el.currentTime = expected;
-        window.setTimeout(() => {
-          syncingRef.current = false;
-        }, 100);
-      }
-    }, 500);
+      if (!el) return;
+      correctDrift(el, refs, syncConfig);
+    }, syncConfig.driftMs);
 
     return () => window.clearInterval(tick);
-  }, [video?.streamUrl]);
+  }, [video?.streamUrl, syncConfig, refs]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -126,20 +160,20 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
 
   const emitAction = useCallback(
     (force = false) => {
-      if (syncingRef.current) return;
+      if (refs.syncing.current) return;
       const el = videoRef.current;
       if (!el) return;
 
       const now = Date.now();
-      if (!force && now - lastEmitRef.current < 120) return;
-      lastEmitRef.current = now;
+      if (!force && now - refs.lastEmit.current < 180) return;
+      refs.lastEmit.current = now;
 
       const payload = {
         currentTime: el.currentTime,
         isPlaying: !el.paused,
       };
 
-      lastRemoteRef.current = {
+      refs.lastRemote.current = {
         currentTime: payload.currentTime,
         isPlaying: payload.isPlaying,
         receivedAt: now,
@@ -147,14 +181,14 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
 
       onUserAction(payload);
     },
-    [onUserAction]
+    [onUserAction, refs]
   );
 
   const togglePlay = useCallback(async () => {
     const el = videoRef.current;
     if (!el) return;
 
-    unlockedRef.current = true;
+    refs.unlocked.current = true;
     setNeedsTap(false);
 
     if (el.paused) {
@@ -166,21 +200,17 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
     } else {
       el.pause();
     }
-  }, []);
+  }, [refs]);
 
   const handleTapToSync = async () => {
     const el = videoRef.current;
-    const remote = lastRemoteRef.current;
+    const remote = refs.lastRemote.current;
     if (!el) return;
 
-    unlockedRef.current = true;
+    refs.unlocked.current = true;
 
     if (remote) {
-      let targetTime = remote.currentTime;
-      if (remote.isPlaying) {
-        targetTime += (Date.now() - remote.receivedAt) / 1000;
-      }
-      el.currentTime = Math.max(0, targetTime);
+      el.currentTime = Math.max(0, getExpectedTime(remote));
     }
 
     try {
@@ -200,14 +230,15 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
   const handleSeek = (value) => {
     const el = videoRef.current;
     if (!el) return;
-    seekingRef.current = true;
+    refs.seeking.current = true;
     el.currentTime = value;
+    el.playbackRate = 1;
     setProgress(value);
   };
 
   const handleSeekEnd = () => {
-    seekingRef.current = false;
-    unlockedRef.current = true;
+    refs.seeking.current = false;
+    refs.unlocked.current = true;
     emitAction(true);
   };
 
@@ -237,7 +268,12 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
 
   const handleTimeUpdate = () => {
     const el = videoRef.current;
-    if (!el || seekingRef.current) return;
+    if (!el || refs.seeking.current) return;
+
+    const now = Date.now();
+    if (now - refs.lastUi.current < 300) return;
+    refs.lastUi.current = now;
+
     setProgress(el.currentTime);
     setIsPlayingLocal(!el.paused);
   };
@@ -287,11 +323,12 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
         onTimeUpdate={handleTimeUpdate}
         onPlay={() => {
           setIsPlayingLocal(true);
-          if (!syncingRef.current) emitAction(true);
+          if (!refs.syncing.current) emitAction(true);
         }}
         onPause={() => {
           setIsPlayingLocal(false);
-          if (!syncingRef.current) emitAction(true);
+          if (videoRef.current) videoRef.current.playbackRate = 1;
+          if (!refs.syncing.current) emitAction(true);
         }}
       />
 
@@ -316,7 +353,12 @@ export default function VideoPlayer({ video, syncTick, onUserAction, hasVideo })
 
         <span className="video-time">{formatTime(duration)}</span>
 
-        <button type="button" className="video-ctrl-btn video-fullscreen-btn" onClick={toggleFullscreen} aria-label="Fullscreen">
+        <button
+          type="button"
+          className="video-ctrl-btn video-fullscreen-btn"
+          onClick={toggleFullscreen}
+          aria-label="Fullscreen"
+        >
           {isFullscreen ? '↙' : '⛶'}
         </button>
       </div>

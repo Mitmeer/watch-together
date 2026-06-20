@@ -73,7 +73,7 @@ export default function Room() {
       nextSyncTick({
         currentTime: result.room.currentTime,
         isPlaying: result.room.isPlaying,
-        sentAt: Date.now(),
+        sentAt: result.room.sentAt || Date.now(),
       })
     );
   }, [socket, connected, code, navigate]);

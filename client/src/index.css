@@ -561,6 +561,8 @@ input:focus {
   display: block;
   background: #000;
   vertical-align: top;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .video-controls {

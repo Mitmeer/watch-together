@@ -15,6 +15,7 @@ import {
   updatePlayback,
   transferHost,
   isRoomHost,
+  getPlaybackSnapshot,
 } from './rooms.js';
 import { extractVideoInfo, refreshStreamUrl, getYtDlpPath } from './videoExtractor.js';
 import { cacheVideo, getCachedVideo, updateStreamUrl, toClientVideo } from './videoStore.js';
@@ -150,6 +151,51 @@ if (isProd) {
   });
 }
 
+const roomSyncTimers = new Map();
+
+function roomWithPlayback(room) {
+  const snapshot = getPlaybackSnapshot(room);
+  return {
+    ...getRoomState(room),
+    currentTime: snapshot.currentTime,
+    isPlaying: snapshot.isPlaying,
+    sentAt: snapshot.sentAt,
+  };
+}
+
+function stopRoomSync(roomCode) {
+  const timer = roomSyncTimers.get(roomCode);
+  if (timer) {
+    clearInterval(timer);
+    roomSyncTimers.delete(roomCode);
+  }
+}
+
+function startRoomSync(roomCode) {
+  stopRoomSync(roomCode);
+  const timer = setInterval(() => {
+    const room = getRoom(roomCode);
+    if (!room || !room.isPlaying) {
+      stopRoomSync(roomCode);
+      return;
+    }
+    const snapshot = getPlaybackSnapshot(room);
+    updatePlayback(room, { currentTime: snapshot.currentTime, isPlaying: true });
+    io.to(roomCode).emit('playback-sync', snapshot);
+  }, 2500);
+  roomSyncTimers.set(roomCode, timer);
+}
+
+function broadcastPlayback(room, senderSocket) {
+  if (room.isPlaying) {
+    startRoomSync(room.code);
+  } else {
+    stopRoomSync(room.code);
+  }
+  const snapshot = getPlaybackSnapshot(room);
+  senderSocket.to(room.code).emit('playback-sync', snapshot);
+}
+
 io.on('connection', (socket) => {
   let userName = 'Гость';
 
@@ -166,7 +212,7 @@ io.on('connection', (socket) => {
     const room = createRoom(socket.id, clientUserId, userName);
     socket.data.roomCode = room.code;
     socket.join(room.code);
-    callback?.({ success: true, room: getRoomState(room) });
+    callback?.({ success: true, room: roomWithPlayback(room) });
     io.to(room.code).emit('room-updated', getRoomState(room));
   });
 
@@ -193,7 +239,7 @@ io.on('connection', (socket) => {
     socket.data.roomCode = room.code;
     socket.join(room.code);
 
-    callback?.({ success: true, room: getRoomState(room) });
+    callback?.({ success: true, room: roomWithPlayback(room) });
     io.to(room.code).emit('room-updated', getRoomState(room));
   });
 
@@ -212,6 +258,7 @@ io.on('connection', (socket) => {
       const video = await prepareVideo(url.trim());
       updatePlayback(room, { video, currentTime: 0, isPlaying: false });
 
+      stopRoomSync(room.code);
       io.to(room.code).emit('video-changed', {
         video,
         currentTime: 0,
@@ -231,15 +278,9 @@ io.on('connection', (socket) => {
 
     const currentTime = Number(data.currentTime) || 0;
     const isPlaying = Boolean(data.isPlaying);
-    const sentAt = Date.now();
 
     updatePlayback(room, { currentTime, isPlaying });
-
-    socket.to(room.code).emit('playback-sync', {
-      currentTime,
-      isPlaying,
-      sentAt,
-    });
+    broadcastPlayback(room, socket);
   });
 
   socket.on('chat-message', ({ text }, callback) => {
@@ -268,7 +309,9 @@ io.on('connection', (socket) => {
     }
 
     io.to(room.code).emit('room-updated', getRoomState(room));
-    deleteRoomIfEmpty(room.code);
+    if (deleteRoomIfEmpty(room.code)) {
+      stopRoomSync(room.code);
+    }
   });
 });
 
