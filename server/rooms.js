@@ -4,7 +4,7 @@ const generateCode = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 6);
 
 const rooms = new Map();
 
-export function createRoom(hostId, hostName) {
+export function createRoom(hostSocketId, hostClientId, hostName) {
   let code;
   do {
     code = generateCode();
@@ -12,12 +12,18 @@ export function createRoom(hostId, hostName) {
 
   const room = {
     code,
-    hostId,
+    hostSocketId,
+    hostClientId,
     video: null,
     currentTime: 0,
     isPlaying: false,
     lastSyncAt: Date.now(),
-    users: new Map([[hostId, { id: hostId, name: hostName, isHost: true }]]),
+    users: new Map([
+      [
+        hostSocketId,
+        { id: hostSocketId, clientUserId: hostClientId, name: hostName, isHost: true },
+      ],
+    ]),
     chat: [],
   };
 
@@ -39,7 +45,8 @@ export function deleteRoomIfEmpty(code) {
 export function getRoomState(room) {
   return {
     code: room.code,
-    hostId: room.hostId,
+    hostId: room.hostSocketId,
+    hostClientId: room.hostClientId,
     video: room.video,
     currentTime: room.currentTime,
     isPlaying: room.isPlaying,
@@ -67,21 +74,23 @@ export function transferHost(room) {
   const nextHost = room.users.values().next().value;
   if (!nextHost) return;
 
-  room.hostId = nextHost.id;
+  room.hostSocketId = nextHost.id;
+  room.hostClientId = nextHost.clientUserId;
   for (const [id, user] of room.users) {
-    user.isHost = id === room.hostId;
+    user.isHost = id === room.hostSocketId;
   }
 }
 
 export function updatePlayback(room, { currentTime, isPlaying, video }) {
-  if (video !== undefined) {
-    room.video = video;
-  }
-  if (currentTime !== undefined) {
-    room.currentTime = currentTime;
-  }
-  if (isPlaying !== undefined) {
-    room.isPlaying = isPlaying;
-  }
+  if (video !== undefined) room.video = video;
+  if (currentTime !== undefined) room.currentTime = currentTime;
+  if (isPlaying !== undefined) room.isPlaying = isPlaying;
   room.lastSyncAt = Date.now();
+}
+
+export function isRoomHost(room, socketId, clientUserId) {
+  if (room.hostClientId && clientUserId) {
+    return room.hostClientId === clientUserId;
+  }
+  return room.hostSocketId === socketId;
 }

@@ -7,7 +7,7 @@ import Chat from '../components/Chat.jsx';
 export default function Room() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const { socket, connected } = useSocket();
+  const { socket, connected, clientUserId } = useSocket();
 
   const [room, setRoom] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -21,7 +21,8 @@ export default function Room() {
   const roomCodeRef = useRef(null);
   const joiningRef = useRef(false);
 
-  const isHost = room?.hostId === socket?.id;
+  const isHost =
+    room?.hostClientId === clientUserId || room?.hostId === socket?.id;
 
   const joinRoom = useCallback(async () => {
     if (!socket || !connected || joiningRef.current) return;

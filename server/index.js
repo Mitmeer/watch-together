@@ -13,6 +13,7 @@ import {
   addChatMessage,
   updatePlayback,
   transferHost,
+  isRoomHost,
 } from './rooms.js';
 import { extractVideoInfo, refreshStreamUrl } from './videoExtractor.js';
 import { cacheVideo, getCachedVideo, updateStreamUrl, toClientVideo } from './videoStore.js';
@@ -126,19 +127,23 @@ io.on('connection', (socket) => {
   let userName = 'Гость';
 
   const getSocketRoom = () => {
+    if (socket.data.roomCode) {
+      return getRoom(socket.data.roomCode);
+    }
     const roomCode = [...socket.rooms].find((r) => r !== socket.id);
     return roomCode ? getRoom(roomCode) : null;
   };
 
-  socket.on('create-room', ({ name }, callback) => {
+  socket.on('create-room', ({ name, clientUserId }, callback) => {
     userName = (name || 'Хост').slice(0, 24);
-    const room = createRoom(socket.id, userName);
+    const room = createRoom(socket.id, clientUserId, userName);
+    socket.data.roomCode = room.code;
     socket.join(room.code);
     callback?.({ success: true, room: getRoomState(room) });
     io.to(room.code).emit('room-updated', getRoomState(room));
   });
 
-  socket.on('join-room', ({ code, name }, callback) => {
+  socket.on('join-room', ({ code, name, clientUserId }, callback) => {
     const room = getRoom(code);
     if (!room) {
       callback?.({ success: false, error: 'Комната не найдена. Проверьте код.' });
@@ -146,9 +151,19 @@ io.on('connection', (socket) => {
     }
 
     userName = (name || 'Гость').slice(0, 24);
-    const isHost = socket.id === room.hostId;
+    const isHost = isRoomHost(room, socket.id, clientUserId);
 
-    room.users.set(socket.id, { id: socket.id, name: userName, isHost });
+    if (isHost) {
+      room.hostSocketId = socket.id;
+    }
+
+    room.users.set(socket.id, {
+      id: socket.id,
+      clientUserId,
+      name: userName,
+      isHost,
+    });
+    socket.data.roomCode = room.code;
     socket.join(room.code);
 
     callback?.({ success: true, room: getRoomState(room) });
@@ -161,7 +176,7 @@ io.on('connection', (socket) => {
       callback?.({ success: false, error: 'Сначала войдите в комнату' });
       return;
     }
-    if (room.hostId !== socket.id) {
+    if (room.hostSocketId !== socket.id) {
       callback?.({ success: false, error: 'Только хост может менять видео' });
       return;
     }
@@ -184,7 +199,7 @@ io.on('connection', (socket) => {
 
   socket.on('playback-sync', (data) => {
     const room = getSocketRoom();
-    if (!room || room.hostId !== socket.id) return;
+    if (!room || room.hostSocketId !== socket.id) return;
 
     updatePlayback(room, {
       currentTime: data.currentTime,
@@ -214,12 +229,13 @@ io.on('connection', (socket) => {
     const room = getSocketRoom();
     if (!room) return;
 
-    const wasHost = socket.id === room.hostId;
+    const wasHost = socket.id === room.hostSocketId;
     room.users.delete(socket.id);
+    delete socket.data.roomCode;
 
     if (wasHost && room.users.size > 0) {
       transferHost(room);
-      io.to(room.code).emit('host-changed', { hostId: room.hostId });
+      io.to(room.code).emit('host-changed', { hostId: room.hostSocketId });
     }
 
     io.to(room.code).emit('room-updated', getRoomState(room));

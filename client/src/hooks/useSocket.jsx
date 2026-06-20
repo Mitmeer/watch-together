@@ -6,6 +6,15 @@ const SOCKET_URL = import.meta.env.DEV ? '' : window.location.origin;
 
 let sharedSocket = null;
 
+function getClientUserId() {
+  let id = sessionStorage.getItem('watchClientUserId');
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem('watchClientUserId', id);
+  }
+  return id;
+}
+
 function getSharedSocket() {
   if (!sharedSocket) {
     sharedSocket = io(SOCKET_URL, {
@@ -44,7 +53,9 @@ export function SocketProvider({ children }) {
   }, []);
 
   return (
-    <SocketContext.Provider value={{ socket: getSharedSocket(), connected, socketId }}>
+    <SocketContext.Provider
+      value={{ socket: getSharedSocket(), connected, socketId, clientUserId: getClientUserId() }}
+    >
       {children}
     </SocketContext.Provider>
   );
@@ -63,11 +74,13 @@ export function emitWithCallback(socket, event, data, timeoutMs = 120000) {
       return;
     }
 
+    const payload = { ...data, clientUserId: getClientUserId() };
+
     const timer = setTimeout(() => {
       resolve({ success: false, error: 'Превышено время ожидания. Попробуйте снова.' });
     }, timeoutMs);
 
-    socket.emit(event, data, (result) => {
+    socket.emit(event, payload, (result) => {
       clearTimeout(timer);
       resolve(result ?? { success: false, error: 'Нет ответа от сервера' });
     });

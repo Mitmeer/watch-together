@@ -1,5 +1,8 @@
 node_modules/
 client/dist/
 .venv/
+bin/
 *.log
 .env
+tunnel-log.txt
+SITE_URL.txt
