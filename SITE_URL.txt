@@ -1,1 +1,11 @@
-https://wiring-infinite-contributions-locally.trycloudflare.com
+Публичная ссылка (локальный туннель, пока включён ПК):
+https://nasty-banks-cough.loca.lt
+(при первом заходе введите IP: 5.18.190.125)
+
+GitHub репозиторий:
+https://github.com/Mitmeer/watch-together
+
+Постоянный облачный деплой (Render.com):
+https://dashboard.render.com/blueprint/new?repo=https://github.com/Mitmeer/watch-together
+
+Локально: http://localhost:3001

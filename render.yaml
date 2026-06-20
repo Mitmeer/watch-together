@@ -1,9 +1,10 @@
 services:
   - type: web
-    name: watch-together
+    name: mitmeer-watch-together
     runtime: docker
     plan: free
     healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
