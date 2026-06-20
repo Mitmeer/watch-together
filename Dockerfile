@@ -16,7 +16,8 @@ RUN npm install && npm install --prefix server && npm install --prefix client
 COPY server ./server
 COPY client ./client
 
-RUN npm run build --prefix client
+RUN npm run build --prefix client \
+    && test -f client/dist/index.html
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

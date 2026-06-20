@@ -3,7 +3,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
-import os from 'os';
+import fs from 'fs';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import {
   createRoom,
@@ -19,10 +20,28 @@ import { extractVideoInfo, refreshStreamUrl, getYtDlpPath } from './videoExtract
 import { cacheVideo, getCachedVideo, updateStreamUrl, toClientVideo } from './videoStore.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rootDir = path.join(__dirname, '..');
+const clientDist = path.join(rootDir, 'client', 'dist');
+const clientIndex = path.join(clientDist, 'index.html');
 const PORT = Number(process.env.PORT) || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 const isProd = process.env.NODE_ENV === 'production';
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || true;
+
+function ensureClientBuild() {
+  if (fs.existsSync(clientIndex)) return;
+
+  console.log('[boot] client/dist not found, building frontend...');
+  execSync('npm run build --prefix client', {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'development' },
+  });
+
+  if (!fs.existsSync(clientIndex)) {
+    throw new Error(`Frontend build failed: ${clientIndex} not found`);
+  }
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -42,6 +61,8 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     mode: isProd ? 'production' : 'development',
     ytDlp: getYtDlpPath(),
+    clientBuild: fs.existsSync(clientIndex),
+    clientDist,
   });
 });
 
@@ -116,13 +137,15 @@ app.get('/api/video/stream/:id', async (req, res) => {
   }
 });
 
-const clientDist = path.join(__dirname, '..', 'client', 'dist');
-
 if (isProd) {
-  app.use(express.static(clientDist, { maxAge: '1d' }));
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(clientDist, 'index.html'), (err) => {
-      if (err) res.status(404).json({ error: 'Not found' });
+  ensureClientBuild();
+  app.use(express.static(clientDist, { maxAge: '1d', index: false }));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    res.sendFile(clientIndex, (err) => {
+      if (err) next(err);
     });
   });
 }

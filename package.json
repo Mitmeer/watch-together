@@ -9,8 +9,8 @@
     "install:all": "npm install && npm install --prefix server && npm install --prefix client",
     "setup:python": "uv venv && uv pip install yt-dlp",
     "build": "npm run build --prefix client",
-    "start": "npm run start --prefix server",
-    "start:prod": "npm run build && cross-env NODE_ENV=production npm run start --prefix server"
+    "start": "cross-env NODE_ENV=production node server/index.js",
+    "start:prod": "npm run build && cross-env NODE_ENV=production node server/index.js"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
