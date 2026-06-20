@@ -71,6 +71,40 @@ body {
   pointer-events: none;
 }
 
+.character-pair {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.character-pair-geass {
+  opacity: 0.85;
+}
+
+.character-pair .character-card {
+  position: relative;
+  opacity: 1;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+}
+
+.character-pair .character-image {
+  width: 100px;
+  max-height: 140px;
+}
+
+.character-pair .character-name {
+  font-size: 0.75rem;
+}
+
 .character-image {
   width: 110px;
   height: auto;
@@ -710,6 +744,17 @@ input:focus {
   .character-card {
     opacity: 0.2;
     transform: scale(0.7);
+  }
+
+  .character-pair-geass {
+    opacity: 0.9;
+    transform: translateX(-50%) scale(0.85);
+    bottom: 8px;
+  }
+
+  .character-pair .character-card {
+    transform: none;
+    opacity: 1;
   }
 
   .room-header {

@@ -28,20 +28,6 @@ const CHARACTERS = [
     position: { bottom: '15%', right: '4%' },
   },
   {
-    name: 'Lelouch',
-    series: 'Code Geass',
-    className: 'char-lelouch',
-    image: '/characters/lelouch.png',
-    position: { bottom: '12%', left: '36%' },
-  },
-  {
-    name: 'C.C.',
-    series: 'Code Geass',
-    className: 'char-cc',
-    image: '/characters/cc.png',
-    position: { bottom: '12%', left: '50%' },
-  },
-  {
     name: 'Сириус',
     series: 'Brawl Stars',
     className: 'char-sirius',
@@ -50,43 +36,65 @@ const CHARACTERS = [
   },
 ];
 
+const GEASS_PAIR = [
+  {
+    name: 'Lelouch',
+    series: 'Code Geass',
+    className: 'char-lelouch',
+    image: '/characters/lelouch.png',
+  },
+  {
+    name: 'C.C.',
+    series: 'Code Geass',
+    className: 'char-cc',
+    image: '/characters/cc.png',
+  },
+];
+
+function CharacterCard({ char }) {
+  return (
+    <div className={`character-card ${char.className}`} style={char.position}>
+      <img
+        src={char.image}
+        alt=""
+        className="character-image"
+        loading="lazy"
+        onError={(e) => {
+          e.target.style.display = 'none';
+          e.target.nextElementSibling?.classList.add('visible');
+        }}
+      />
+      <div className="character-fallback">
+        <span className="character-emoji">
+          {char.className === 'char-mortis' && '🦇'}
+          {char.className === 'char-angelo' && '💗'}
+          {char.className === 'char-mellstroy' && '🔥'}
+          {char.className === 'char-taksa' && '🐕'}
+          {char.className === 'char-lelouch' && '👑'}
+          {char.className === 'char-cc' && '🍕'}
+          {char.className === 'char-sirius' && '🌙'}
+        </span>
+      </div>
+      <div className="character-label">
+        <span className="character-name">{char.name}</span>
+        {char.series && <span className="character-series">{char.series}</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function BackgroundCharacters() {
   return (
     <div className="bg-characters" aria-hidden="true">
       <div className="bg-gradient" />
       {CHARACTERS.map((char) => (
-        <div
-          key={char.name}
-          className={`character-card ${char.className}`}
-          style={char.position}
-        >
-          <img
-            src={char.image}
-            alt=""
-            className="character-image"
-            loading="lazy"
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextElementSibling?.classList.add('visible');
-            }}
-          />
-          <div className="character-fallback">
-            <span className="character-emoji">
-              {char.className === 'char-mortis' && '🦇'}
-              {char.className === 'char-angelo' && '💗'}
-              {char.className === 'char-mellstroy' && '🔥'}
-              {char.className === 'char-taksa' && '🐕'}
-              {char.className === 'char-lelouch' && '👑'}
-              {char.className === 'char-cc' && '🍕'}
-              {char.className === 'char-sirius' && '🌙'}
-            </span>
-          </div>
-          <div className="character-label">
-            <span className="character-name">{char.name}</span>
-            {char.series && <span className="character-series">{char.series}</span>}
-          </div>
-        </div>
+        <CharacterCard key={char.name} char={char} />
       ))}
+      <div className="character-pair character-pair-geass">
+        {GEASS_PAIR.map((char) => (
+          <CharacterCard key={char.name} char={char} />
+        ))}
+      </div>
       <div className="bg-particles" />
     </div>
   );
